@@ -63,5 +63,14 @@ envsubst < test/e2e/run-tests-job.yaml | kubectl apply -f -
 
 # wait for tests to complete TODO: adjust timeout as necessary
 kubectl wait --for=condition=complete job/cma-aws-e2e-tests --timeout=36m
+
 # output logs after job completes
 kubectl logs job/cma-aws-e2e-tests -n pipeline-tools
+
+#logsoutput=$(kubectl logs job/cma-aws-e2e-tests -n pipeline-tools)
+#if echo $nodes | grep -o "full-test PASSED"; then
+#  echo "full e2e test PASSED"
+#else
+#  echo "full e2e test FAILED"
+#  return 1
+#fi

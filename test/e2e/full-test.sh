@@ -124,6 +124,9 @@ test_delete(){
 main() {
   fullstatus="PASSED"
 
+  # For test making it fail
+  fullstatus="FAILED"
+
   # test create is provisioning
   if ! test_provisioning; then
      echo "test_provisioning FAILED"
@@ -157,7 +160,9 @@ main() {
     exit 1
   fi
 
-  exit 0
+  # For test making it fail
+  exit 1
+  #exit 0
 }
 
 main
