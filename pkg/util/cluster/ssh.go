@@ -1,10 +1,10 @@
 package cluster
 
 import (
-	"github.com/spf13/viper"
 	"github.com/samsung-cnct/cma-aws/pkg/util/awsutil"
 	"github.com/samsung-cnct/cma-aws/pkg/util/awsutil/models"
 	"github.com/samsung-cnct/cma-aws/pkg/util/k8s"
+	"github.com/spf13/viper"
 )
 
 const (
@@ -29,4 +29,17 @@ func ProvisionAndSaveSSHKey(clusterName string, credentials awsmodels.Credential
 	}
 
 	return clusterName, nil
+}
+
+func RemoveSSHKey(clusterName string, credentials awsmodels.Credentials) error {
+	err := awsutil.DeleteKey(clusterName, credentials)
+	if err != nil {
+		return err
+	}
+
+	err = k8sutil.DeleteSSHSecret(clusterName, viper.GetString("kubernetes-namespace"))
+	if err != nil {
+		return err
+	}
+	return nil
 }

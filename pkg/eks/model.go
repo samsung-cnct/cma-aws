@@ -5,10 +5,17 @@ type CreateClusterInput struct {
 	Name    string
 	Version string
 	Region  string
+	// SSHKeyName of a keypair in AWS credential Region
+	SSHKeyName string
 	// AvailabilityZones is optional, eks can select by region
 	AvailabilityZones []string
 	// NodePools is the worker node pool
 	NodePools []NodePool
+}
+
+// CreateClusterOutput contains output from the create command
+type CreateClusterOutput struct {
+	CmdOutput string
 }
 
 // NodePool is the worker node pool

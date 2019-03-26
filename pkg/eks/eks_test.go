@@ -1,6 +1,9 @@
 package eks
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestCreateEksBadToken(t *testing.T) {
 	ekscluster := New(AwsCredentials{
@@ -16,13 +19,14 @@ func TestCreateEksBadToken(t *testing.T) {
 	nodepools[0].Nodes = 2
 	nodepools[0].Type = "m5.large"
 
-	err := ekscluster.CreateCluster(CreateClusterInput{
+	output, err := ekscluster.CreateCluster(CreateClusterInput{
 		Name:              ekscluster.clusterName,
 		Version:           "1.11",
 		Region:            ekscluster.region,
 		AvailabilityZones: azs,
 		NodePools:         nodepools,
 	})
+	fmt.Printf("output = %s", output.CmdOutput)
 	if err == nil {
 		t.Errorf("want error, got nil")
 	}

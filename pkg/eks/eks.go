@@ -68,11 +68,15 @@ func (e *EKS) GetCreateClusterArgs(in CreateClusterInput) []string {
 		args = append(args, in.NodePools[0].Name)
 	}
 	// nodes
-	args = append(args, "--nodes")
-	args = append(args, strconv.FormatInt(int64(in.NodePools[0].Nodes), 10))
+	if in.NodePools[0].Nodes != 0 {
+		args = append(args, "--nodes")
+		args = append(args, strconv.FormatInt(int64(in.NodePools[0].Nodes), 10))
+	}
 	// node-type
-	args = append(args, "--node-type")
-	args = append(args, in.NodePools[0].Type)
+	if in.NodePools[0].Type != "" {
+		args = append(args, "--node-type")
+		args = append(args, in.NodePools[0].Type)
+	}
 	// nodes-min and nodes-max for auto scaling
 	if in.NodePools[0].MaxNodes > 0 {
 		args = append(args, "--nodes-min")
@@ -83,7 +87,7 @@ func (e *EKS) GetCreateClusterArgs(in CreateClusterInput) []string {
 	return args
 }
 
-func (e *EKS) CreateCluster(in CreateClusterInput) error {
+func (e *EKS) CreateCluster(in CreateClusterInput) (CreateClusterOutput, error) {
 	SetLogger()
 
 	// create cluster command
@@ -96,13 +100,13 @@ func (e *EKS) CreateCluster(in CreateClusterInput) error {
 	)
 
 	output, err := cmd.Run()
-	logger.Infof("create cmd output is %s", output.String())
+	//logger.Infof("create cmd output is %s", output.String())
 	if err != nil {
 		logger.Errorf("CreateCluster error running eksctl command: %v", err)
-		return err
+		return CreateClusterOutput{CmdOutput: output.String()}, err
 	}
 
 	// TODO: Future work - add additional nodepools (if more than one)
 
-	return nil
+	return CreateClusterOutput{CmdOutput: output.String()}, nil
 }
