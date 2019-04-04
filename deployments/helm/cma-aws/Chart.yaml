@@ -1,5 +1,5 @@
 name: cma-aws
-version: 0.1.13
+version: 0.1.14
 description: The Cluster Manager API AWS Helper
 keywords:
 - hybridstack
