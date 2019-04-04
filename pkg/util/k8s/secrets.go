@@ -2,6 +2,7 @@ package k8sutil
 
 import (
 	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -68,13 +69,15 @@ func GetSecretList(namespace string, options v1.ListOptions) (result []corev1.Se
 	}
 	client, err := kubernetes.NewForConfig(DefaultConfig)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	secrets, err := client.CoreV1().Secrets(namespace).List(options)
-
+	if err != nil {
+		return nil, err
+	}
 	result = secrets.Items
-	return
+	return result, nil
 }
 
 func DeleteSecret(name string, namespace string) (err error) {
@@ -83,11 +86,11 @@ func DeleteSecret(name string, namespace string) (err error) {
 	}
 	client, err := kubernetes.NewForConfig(DefaultConfig)
 	if err != nil {
-		return
+		return err
 	}
 
 	err = client.CoreV1().Secrets(namespace).Delete(name, &v1.DeleteOptions{})
-	return
+	return err
 }
 
 func GetSSHSecretList(namespace string) (result []corev1.Secret, err error) {
@@ -135,7 +138,7 @@ func CreateSSHSecret(name string, namespace string, privateKey []byte) (err erro
 	}
 	client, err := kubernetes.NewForConfig(DefaultConfig)
 	if err != nil {
-		return
+		return err
 	}
 
 	labelMap := make(map[string]string)
@@ -151,7 +154,7 @@ func CreateSSHSecret(name string, namespace string, privateKey []byte) (err erro
 	}
 
 	_, err = client.CoreV1().Secrets(namespace).Create(secret)
-	return
+	return err
 }
 
 func GetKubeconfigSecretList(namespace string) (result []corev1.Secret, err error) {
