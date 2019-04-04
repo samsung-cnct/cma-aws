@@ -2,6 +2,7 @@ package awsutil
 
 import (
 	"fmt"
+
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/samsung-cnct/cma-aws/pkg/util/awsutil/models"
 
@@ -28,7 +29,7 @@ func GetKeyList(credentials awsmodels.Credentials) (keyPairs []*ec2.KeyPairInfo,
 func CreateKey(name string, credentials awsmodels.Credentials) (privateKey string, err error) {
 	service, err := createEC2ServiceFromCredentials(credentials)
 	if err != nil {
-		return
+		return "", err
 	}
 
 	// Create the key
@@ -39,21 +40,21 @@ func CreateKey(name string, credentials awsmodels.Credentials) (privateKey strin
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == "InvalidKeyPair.Duplicate" {
 			err = fmt.Errorf("keypair %q already exists", name)
-			return
+			return "", err
 		}
 		err = fmt.Errorf("unable to create key pair: %s, %v", name, err)
-		return
+		return "", err
 	}
 
 	// Return back the private key
 	privateKey = *result.KeyMaterial
-	return
+	return privateKey, nil
 }
 
 func DeleteKey(name string, credentials awsmodels.Credentials) (err error) {
 	service, err := createEC2ServiceFromCredentials(credentials)
 	if err != nil {
-		return
+		return err
 	}
 
 	_, err = service.DeleteKeyPair(&ec2.DeleteKeyPairInput{
@@ -62,11 +63,11 @@ func DeleteKey(name string, credentials awsmodels.Credentials) (err error) {
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == "InvalidKeyPair.Duplicate" {
 			err = fmt.Errorf("keypair %q does not exist", name)
-			return
+			return err
 		}
 		err = fmt.Errorf("unable to create key pair: %s, %v", name, err)
-		return
+		return err
 	}
 
-	return
+	return nil
 }

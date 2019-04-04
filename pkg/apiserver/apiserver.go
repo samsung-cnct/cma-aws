@@ -2,8 +2,8 @@ package apiserver
 
 import (
 	"github.com/juju/loggo"
-	"github.com/soheilhy/cmux"
 	"github.com/samsung-cnct/cma-aws/pkg/util"
+	"github.com/soheilhy/cmux"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
@@ -15,6 +15,7 @@ import (
 	service "github.com/samsung-cnct/cma-aws/internal/apiserver"
 	pb "github.com/samsung-cnct/cma-aws/pkg/generated/api"
 	"github.com/samsung-cnct/cma-aws/pkg/ui/website"
+	"github.com/samsung-cnct/cma-aws/pkg/util/cluster"
 )
 
 var (
@@ -72,5 +73,7 @@ func addgRPCRestGateway(router *http.ServeMux, grpcPortNumber int) {
 }
 
 func newgRPCServiceServer() *service.Server {
-	return new(service.Server)
+	return &service.Server{
+		ErrorMap: cluster.NewErrorMap(),
+	}
 }

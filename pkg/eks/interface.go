@@ -2,7 +2,7 @@ package eks
 
 type EKSCluster interface {
 	// CreateCluster creates an eks cluster
-	CreateCluster(CreateClusterInput) error
+	CreateCluster(CreateClusterInput) (CreateClusterOutput, error)
 	// GetCluster returns the eks status and Cluster info
 	GetCluster(GetClusterInput) (GetClusterOutput, error)
 	// ListClusters retuns a list of ClusterOutput
