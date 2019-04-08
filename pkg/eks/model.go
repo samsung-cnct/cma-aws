@@ -45,6 +45,8 @@ type GetClusterOutput struct {
 	Vpc              string
 	Subnets          []string
 	SecurityGroups   []string
+	// CmdOutput is info output from the command
+	CmdOutput string
 }
 
 // ListClustersInput returns a list of all clusters

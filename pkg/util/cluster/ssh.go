@@ -36,8 +36,8 @@ func RemoveSSHKey(clusterName string, credentials awsmodels.Credentials) error {
 	if err != nil {
 		return err
 	}
-
-	err = k8sutil.DeleteSSHSecret(clusterName, viper.GetString("kubernetes-namespace"))
+	sshSecretName := clusterName + SSHK8SSecretSuffix
+	err = k8sutil.DeleteSSHSecret(sshSecretName, viper.GetString("kubernetes-namespace"))
 	if err != nil {
 		return err
 	}

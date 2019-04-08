@@ -1,9 +1,10 @@
 package apiserver
 
 import (
-	"fmt"
+	"io/ioutil"
+	"os"
+	"strings"
 
-	"github.com/aws/aws-sdk-go/service/cloudformation"
 	eks "github.com/samsung-cnct/cma-aws/pkg/eks"
 	pb "github.com/samsung-cnct/cma-aws/pkg/generated/api"
 	"github.com/samsung-cnct/cma-aws/pkg/util/awsutil"
@@ -14,35 +15,12 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// match aws cluster status to api status enum
-func matchStatus(status string) pb.ClusterStatus {
+func matchEksStatus(status string) pb.ClusterStatus {
 	switch status {
-	case cloudformation.StackStatusCreateInProgress:
+	case "ACTIVE":
+		return pb.ClusterStatus_RUNNING
+	case "CREATING":
 		return pb.ClusterStatus_PROVISIONING
-	case cloudformation.StackStatusReviewInProgress:
-		return pb.ClusterStatus_RECONCILING
-	case cloudformation.StackStatusRollbackInProgress:
-		return pb.ClusterStatus_RECONCILING
-	case cloudformation.StackStatusUpdateInProgress:
-		return pb.ClusterStatus_RECONCILING
-	case cloudformation.StackStatusCreateComplete:
-		return pb.ClusterStatus_RUNNING
-	case cloudformation.StackStatusUpdateComplete:
-		return pb.ClusterStatus_RUNNING
-	case cloudformation.StackStatusDeleteInProgress:
-		return pb.ClusterStatus_STOPPING
-	case cloudformation.StackStatusDeleteComplete:
-		return pb.ClusterStatus_STOPPING
-	case cloudformation.StackStatusCreateFailed:
-		return pb.ClusterStatus_ERROR
-	case cloudformation.StackStatusDeleteFailed:
-		return pb.ClusterStatus_ERROR
-	case cloudformation.StackStatusRollbackFailed:
-		return pb.ClusterStatus_ERROR
-	case cloudformation.StackStatusRollbackComplete:
-		return pb.ClusterStatus_ERROR
-	case cloudformation.StackStatusUpdateRollbackFailed:
-		return pb.ClusterStatus_ERROR
 	default:
 		return pb.ClusterStatus_STATUS_UNSPECIFIED
 	}
@@ -60,7 +38,20 @@ func (s *Server) CreateCluster(ctx context.Context, in *pb.CreateClusterMsg) (*p
 			"Must be at least 2 DataCenter.AvailabilityZones, if specified")
 	}
 
-	// TODO: check if cluster exists when GET cluster is ready
+	// check if cluster exists or invalid token
+	e := eks.New(eks.AwsCredentials{
+		AccessKeyId:     in.Provider.GetAws().Credentials.SecretKeyId,
+		SecretAccessKey: in.Provider.GetAws().Credentials.SecretAccessKey,
+		Region:          in.Provider.GetAws().Credentials.Region,
+	}, in.Name, in.Provider.GetAws().DataCenter.Region, "")
+	exists, exout := e.ClusterExists(in.Name, in.Provider.GetAws().DataCenter.Region)
+	if exists {
+		return nil, status.Error(codes.AlreadyExists, "cluster already exists")
+	} else {
+		if strings.Contains(exout, "InvalidClientTokenId") {
+			return nil, status.Error(codes.Unauthenticated, exout)
+		}
+	}
 
 	// create cluster
 	go func() {
@@ -82,7 +73,7 @@ func (s *Server) CreateEksCluster(ctx context.Context, in *pb.CreateClusterMsg) 
 	credentials := generateCredentials(in.Provider.GetAws().Credentials)
 	keyName, err := cluster.ProvisionAndSaveSSHKey(in.Name, credentials)
 	if err != nil {
-		fmt.Printf("Error creating AWS SSH key: %v", err)
+		logger.Errorf("Error creating AWS SSH key: %v", err)
 	}
 
 	e := eks.New(eks.AwsCredentials{
@@ -107,8 +98,7 @@ func (s *Server) CreateEksCluster(ctx context.Context, in *pb.CreateClusterMsg) 
 		NodePools:         nodepools,
 	})
 	if err != nil {
-		// log to console
-		fmt.Printf("CreateCluster error: %v CmdOutput: %s", err, createout.CmdOutput)
+		logger.Errorf("CreateCluster Error: %v CmdOutput: %s", err, createout.CmdOutput)
 
 		// store error in threadsafe map for use later by GetCluster
 		// GetCluster will report the error and delete it from the map.
@@ -121,7 +111,7 @@ func (s *Server) CreateEksCluster(ctx context.Context, in *pb.CreateClusterMsg) 
 		// try to remove ssh key
 		ssherr := cluster.RemoveSSHKey(in.Name, credentials)
 		if ssherr != nil {
-			fmt.Printf("Warning: error removing ssh keys: %v", ssherr)
+			logger.Warningf("Error removing ssh keys: %v", ssherr)
 		}
 
 		return err
@@ -129,45 +119,78 @@ func (s *Server) CreateEksCluster(ctx context.Context, in *pb.CreateClusterMsg) 
 	return nil
 }
 
-func (s *Server) GetCluster(ctx context.Context, in *pb.GetClusterMsg) (*pb.GetClusterReply, error) {
-	stackId := in.Name
-	credentials := generateCredentials(in.Credentials)
+// getErrorCodeString returns the error code and msg string to use for the error
+func (s *Server) getErrorCodeString(cmdOutput string, errorMapKey string) (codes.Code, string) {
+	var c codes.Code = codes.Unknown
+	var msg string = cmdOutput
+	if strings.Contains(cmdOutput, "InvalidClientTokenId") {
+		return codes.Unauthenticated, cmdOutput
+	}
+	if strings.Contains(cmdOutput, "AlreadyExistsException") {
+		return codes.AlreadyExists, cmdOutput
+	}
+	if strings.Contains(cmdOutput, "ResourceNotFoundException") {
+		c = codes.NotFound
+	}
+	// check for saved error (create saves error)
+	value, found := s.ErrorMap.Load(errorMapKey)
+	if found {
+		msg = "Error output: " + value.CmdOutput
+		s.ErrorMap.Delete(errorMapKey)
+	}
+	return c, msg
+}
 
-	outputs, err := awsutil.GetHeptioCFStackOutput(stackId, credentials)
+func (s *Server) GetCluster(ctx context.Context, in *pb.GetClusterMsg) (*pb.GetClusterReply, error) {
+	e := eks.New(eks.AwsCredentials{
+		AccessKeyId:     in.Credentials.SecretKeyId,
+		SecretAccessKey: in.Credentials.SecretAccessKey,
+		Region:          in.Credentials.Region,
+	}, in.Name, in.Region, "")
+	output, err := e.GetCluster(eks.GetClusterInput{
+		Name:   in.Name,
+		Region: in.Region,
+	})
 	if err != nil {
-		fmt.Printf("Error: %s\n", err)
-		return nil, err
+		logger.Errorf("GetCluster Error: %v  CmdOutput: %s", err, output.CmdOutput)
+		key := in.Name + in.Region + in.Credentials.SecretKeyId
+		c, msg := s.getErrorCodeString(output.CmdOutput, key)
+		if c == codes.NotFound {
+			// a not found exception is thrown for a short period after create cluster
+			clusterCreating, _ := e.ClusterCreateInProgress(in.Name, in.Region)
+			if clusterCreating {
+				return &pb.GetClusterReply{
+					Ok: true,
+					Cluster: &pb.ClusterDetailItem{
+						Id:         in.Name,
+						Name:       in.Name,
+						Status:     pb.ClusterStatus_PROVISIONING,
+						Kubeconfig: "",
+					},
+				}, nil
+			}
+		}
+		return nil, status.Error(c, msg)
 	}
 
-	var kubeconfig []byte
-	if outputs.Status == cloudformation.StackStatusCreateComplete {
-		kubeconfig, err = cluster.GetKubeConfig(stackId, cluster.SSHConnectionOptions{
-			BastionHost: cluster.SSHConnectionHost{
-				Hostname:      outputs.BastionHostPublicIp,
-				Port:          "22",
-				Username:      "ubuntu",
-				KeySecretName: stackId,
-			},
-			TargetHost: cluster.SSHConnectionHost{
-				Hostname:      outputs.MasterPrivateIp,
-				Port:          "22",
-				Username:      "ubuntu",
-				KeySecretName: stackId,
-			},
-		})
-
-		if err != nil {
-			logger.Errorf("Error when creating cluster -->%s<-- kubeconfig, error message: %s", stackId, err)
-		}
+	// GetKubeConfig
+	file, err := ioutil.TempFile("/tmp", in.Name)
+	if err != nil {
+		logger.Errorf("Error creating tempory file for kubeconfig: %v", err)
+	}
+	defer os.Remove(file.Name())
+	kubeConfigBuf, err := e.GetKubeConfigData(file.Name())
+	if err != nil {
+		logger.Warningf("GetKubeConfigData returning error: %v", err)
 	}
 
 	return &pb.GetClusterReply{
 		Ok: true,
 		Cluster: &pb.ClusterDetailItem{
-			Id:         stackId,
-			Name:       stackId,
-			Status:     pb.ClusterStatus(matchStatus(outputs.Status)),
-			Kubeconfig: string(kubeconfig),
+			Id:         in.Name,
+			Name:       in.Name,
+			Status:     pb.ClusterStatus(matchEksStatus(output.Status)),
+			Kubeconfig: kubeConfigBuf.String(),
 		},
 	}, nil
 }
