@@ -8,7 +8,7 @@ type EKSCluster interface {
 	// ListClusters retuns a list of ClusterOutput
 	ListClusters(ListClustersInput) (ListClustersOutput, error)
 	// DeleteCluster deletes an eks cluster
-	DeleteCluster(DeleteClusterInput) error
+	DeleteCluster(DeleteClusterInput) (DeleteClusterOutput, error)
 	// CreateNodeGroup creates an eks nodepool group
 	CreateNodeGroup(CreateNodeGroupInput) error
 	// DeleteNodeGroup deletes an eks nodepool group
