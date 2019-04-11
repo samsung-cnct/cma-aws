@@ -5,7 +5,7 @@
 
 name: cma-aws
 image:
-   repo: quay.io/samsung_cnct/cma-aws:0.1.16
+   repo: quay.io/samsung_cnct/cma-aws:0.1.17
 
 port: 80
 service:
