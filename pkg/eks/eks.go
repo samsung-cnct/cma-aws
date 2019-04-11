@@ -20,6 +20,7 @@ var (
 const (
 	MaxCmdArgs                  = 30
 	CreateClusterTimeoutSeconds = 1200
+	DeleteClusterTimeoutSeconds = 1200
 	GetClusterTimeoutSeconds    = 30
 )
 
@@ -207,8 +208,9 @@ func (e *EKS) DescribeStacksArgs(clusterName string, dataCenterRegion string) []
 	return args
 }
 
-// ClusterCreateInProgress should be checked if GetCluster returns ResourceNotFoundException
-// There is a period of time eksctl will return not found after the eksctl create cluster command
+// ClusterCreateInProgress should be checked if GetCluster returns a ResourceNotFoundException error.
+// There is a period of time eksctl get cluster will return a ResourceNotFoundException error while
+// the cluster is starting to provision.
 func (e *EKS) ClusterCreateInProgress(clusterName string, dataCenterRegion string) (bool, string) {
 	// describe-stacks command
 	cmd := cmd.New("eksctl",
@@ -233,7 +235,6 @@ func (e *EKS) ClusterCreateInProgress(clusterName string, dataCenterRegion strin
 
 // GetCluster returns eks cluster status
 func (e *EKS) GetCluster(in GetClusterInput) (GetClusterOutput, error) {
-	// get cluster command
 	cmd := cmd.New("eksctl",
 		e.GetClusterArgs(in.Name, in.Region),
 		time.Duration(GetClusterTimeoutSeconds)*time.Second,
@@ -266,4 +267,34 @@ func (e *EKS) GetCluster(in GetClusterInput) (GetClusterOutput, error) {
 		Status:           fmt.Sprintf("%v", result["Status"]),
 		CreatedTimestamp: fmt.Sprintf("%v", result["CreatedAt"]),
 		CmdOutput:        output.String()}, nil
+}
+
+func (e *EKS) DeleteClusterArgs(clusterName string, dataCenterRegion string) []string {
+	args := make([]string, 0, MaxCmdArgs)
+	args = append(args, "delete")
+	args = append(args, "cluster")
+	// name
+	args = append(args, "--name")
+	args = append(args, clusterName)
+	// datacenter region
+	args = append(args, "--region")
+	args = append(args, dataCenterRegion)
+	return args
+}
+
+func (e *EKS) DeleteCluster(in DeleteClusterInput) (DeleteClusterOutput, error) {
+	cmd := cmd.New("eksctl",
+		e.DeleteClusterArgs(in.Name, in.Region),
+		time.Duration(DeleteClusterTimeoutSeconds)*time.Second,
+		[]string{"AWS_ACCESS_KEY_ID=" + e.awsCreds.AccessKeyId,
+			"AWS_SECRET_ACCESS_KEY=" + e.awsCreds.SecretAccessKey,
+			"AWS_DEFAULT_REGION=" + e.awsCreds.Region},
+	)
+
+	output, err := cmd.Run()
+	if err != nil {
+		logger.Errorf("DeleteCluster error running eksctl command: %v", err)
+	}
+
+	return DeleteClusterOutput{CmdOutput: output.String()}, err
 }

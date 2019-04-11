@@ -72,6 +72,11 @@ type DeleteClusterInput struct {
 	Region string
 }
 
+// DeleteClusterOutput contains output from the delete command
+type DeleteClusterOutput struct {
+	CmdOutput string
+}
+
 // CreateNodeGroupInput is used to create a worker nodepool group
 type CreateNodeGroupInput struct {
 	ClusterName string

@@ -21,6 +21,8 @@ func matchEksStatus(status string) pb.ClusterStatus {
 		return pb.ClusterStatus_RUNNING
 	case "CREATING":
 		return pb.ClusterStatus_PROVISIONING
+	case "DELETING":
+		return pb.ClusterStatus_STOPPING
 	default:
 		return pb.ClusterStatus_STATUS_UNSPECIFIED
 	}
@@ -196,24 +198,54 @@ func (s *Server) GetCluster(ctx context.Context, in *pb.GetClusterMsg) (*pb.GetC
 }
 
 func (s *Server) DeleteCluster(ctx context.Context, in *pb.DeleteClusterMsg) (*pb.DeleteClusterReply, error) {
-	stackId := in.Name
+	go func() {
+		_ = s.DeleteEksCluster(ctx, in)
+	}()
+
+	return &pb.DeleteClusterReply{Ok: true, Status: "STOPPING"}, nil
+}
+
+func (s *Server) DeleteEksCluster(ctx context.Context, in *pb.DeleteClusterMsg) error {
 	credentials := generateCredentials(in.Credentials)
 
-	err := awsutil.DeleteCFStack(stackId, credentials)
+	e := eks.New(eks.AwsCredentials{
+		AccessKeyId:     in.Credentials.SecretKeyId,
+		SecretAccessKey: in.Credentials.SecretAccessKey,
+		Region:          in.Credentials.Region,
+	}, in.Name, in.Region, "")
+
+	output, err := e.DeleteCluster(eks.DeleteClusterInput{
+		Name:   in.Name,
+		Region: in.Region,
+	})
 	if err != nil {
-		return nil, err
+		logger.Errorf("DeleteCluster error: %v cmdOutput: %s", err, output.CmdOutput)
+
+		// Store error in threadsafe map for use later by GetCluster.
+		// GetCluster will report the error and delete it from the map.
+		// NOTE: The current design uses the cma-operator to poll
+		// with a GetCluster command and return results to a callback.
+		// If two commands (create, delete) are performed before the
+		// next polling interval, the results will be from the last
+		// request.  In the future we might consider storing the responses
+		// in a message queue by request ID context.
+		key := in.Name + in.Region + in.Credentials.SecretKeyId
+		s.ErrorMap.Store(key, cluster.ErrorValue{
+			CmdError:  err,
+			CmdOutput: output.CmdOutput,
+		})
 	}
 
-	// TODO: Should we continue to clean up if the initial thing fails?
-	err = cluster.CleanupClusterInK8s(stackId)
-	if err != nil {
-		return nil, err
+	// delete ssh key
+	awserr := awsutil.DeleteKey(in.Name, credentials)
+	if awserr != nil {
+		logger.Warningf("Error deleting ssh key: %v", awserr)
 	}
-	err = awsutil.DeleteKey(stackId, credentials)
-	if err != nil {
-		return nil, err
+	ssherr := cluster.RemoveSSHKey(in.Name, credentials)
+	if ssherr != nil {
+		logger.Warningf("Error deleting ssh secret: %v", ssherr)
 	}
-	return &pb.DeleteClusterReply{Ok: true, Status: "Deleting"}, nil
+	return err
 }
 
 func (s *Server) GetClusterList(ctx context.Context, in *pb.GetClusterListMsg) (reply *pb.GetClusterListReply, err error) {
