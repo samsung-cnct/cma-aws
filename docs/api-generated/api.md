@@ -170,6 +170,7 @@ Instance groups define a type and number of instances
 | max_quantity | [int32](#int32) |  | Maximum number of instances (defaults to zero) |
 | name | [string](#string) |  | Name of instance group (optional auto-generated if not set) |
 | desired_quantity | [int32](#int32) |  | Number of worker node instances desired (defaults to zero) |
+| ssh_access | [bool](#bool) |  | SSH Access to open ssh access on the nodes |
 
 
 
@@ -538,6 +539,7 @@ Instance groups define a type and number of instances
 | max_quantity | [int32](#int32) |  | Maximum number of instances (defaults to zero) |
 | name | [string](#string) |  | Name of instance group (optional auto-generated if not set) |
 | desired_quantity | [int32](#int32) |  | Number of worker node instances desired (defaults to zero) |
+| ssh_access | [bool](#bool) |  | SSH Access to open ssh access on the nodes |
 
 
 

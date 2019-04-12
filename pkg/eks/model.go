@@ -28,6 +28,8 @@ type NodePool struct {
 	// Min and Max Nodes is used for autoscaling
 	MinNodes int32
 	MaxNodes int32
+	// SshAccess true opens the ssh ports
+	SshAccess bool
 }
 
 // GetClusterInput requires the cluster name and region

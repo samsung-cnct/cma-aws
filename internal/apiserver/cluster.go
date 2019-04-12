@@ -71,12 +71,7 @@ func (s *Server) CreateCluster(ctx context.Context, in *pb.CreateClusterMsg) (*p
 }
 
 func (s *Server) CreateEksCluster(ctx context.Context, in *pb.CreateClusterMsg) error {
-	// create ssh key in AWS credential region, and store as secret
 	credentials := generateCredentials(in.Provider.GetAws().Credentials)
-	keyName, err := cluster.ProvisionAndSaveSSHKey(in.Name, credentials)
-	if err != nil {
-		logger.Errorf("Error creating AWS SSH key: %v", err)
-	}
 
 	e := eks.New(eks.AwsCredentials{
 		AccessKeyId:     in.Provider.GetAws().Credentials.SecretKeyId,
@@ -90,6 +85,18 @@ func (s *Server) CreateEksCluster(ctx context.Context, in *pb.CreateClusterMsg) 
 	nodepools[0].Type = in.Provider.GetAws().InstanceGroups[0].Type
 	nodepools[0].MinNodes = in.Provider.GetAws().InstanceGroups[0].MinQuantity
 	nodepools[0].MaxNodes = in.Provider.GetAws().InstanceGroups[0].MaxQuantity
+	nodepools[0].SshAccess = in.Provider.GetAws().InstanceGroups[0].SshAccess
+
+	// create ssh key in AWS credential region, and store as secret
+	var keyName string = ""
+	if in.Provider.GetAws().InstanceGroups[0].SshAccess {
+		sshkeyName, err := cluster.ProvisionAndSaveSSHKey(in.Name, credentials)
+		if err != nil {
+			logger.Errorf("Error creating AWS SSH key: %v", err)
+		} else {
+			keyName = sshkeyName
+		}
+	}
 
 	createout, err := e.CreateCluster(eks.CreateClusterInput{
 		Name:              in.Name,
@@ -110,12 +117,13 @@ func (s *Server) CreateEksCluster(ctx context.Context, in *pb.CreateClusterMsg) 
 			CmdOutput: createout.CmdOutput,
 		})
 
-		// try to remove ssh key
-		ssherr := cluster.RemoveSSHKey(in.Name, credentials)
-		if ssherr != nil {
-			logger.Warningf("Error removing ssh keys: %v", ssherr)
+		if in.Provider.GetAws().InstanceGroups[0].SshAccess {
+			// try to remove ssh key
+			ssherr := cluster.RemoveSSHKey(in.Name, credentials)
+			if ssherr != nil {
+				logger.Warningf("Error removing ssh keys: %v", ssherr)
+			}
 		}
-
 		return err
 	}
 	return nil
