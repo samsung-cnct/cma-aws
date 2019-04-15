@@ -244,7 +244,8 @@ message CreateClusterAWSSpec {
         string name = 4;
         // Number of worker node instances desired (defaults to zero)
         int32 desired_quantity = 5;
-
+        // SSH Access to open ssh access on the nodes
+        bool ssh_access = 6;
     }
 }
 

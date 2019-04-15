@@ -259,6 +259,11 @@
           "type": "integer",
           "format": "int32",
           "title": "Number of worker node instances desired (defaults to zero)"
+        },
+        "ssh_access": {
+          "type": "boolean",
+          "format": "boolean",
+          "title": "SSH Access to open ssh access on the nodes"
         }
       },
       "title": "Instance groups define a type and number of instances"

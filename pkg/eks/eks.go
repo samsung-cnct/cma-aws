@@ -89,6 +89,16 @@ func (e *EKS) GetCreateClusterArgs(in CreateClusterInput) []string {
 		args = append(args, "--nodes-max")
 		args = append(args, strconv.FormatInt(int64(in.NodePools[0].MaxNodes), 10))
 	}
+	// sshaccess and sshkey
+	if in.NodePools[0].SshAccess {
+		if in.SSHKeyName != "" {
+			args = append(args, "--ssh-access")
+			args = append(args, "--ssh-public-key")
+			args = append(args, in.SSHKeyName)
+		} else {
+			logger.Errorf("Failed to create SSHKeyName for cluster %s region %s", in.Name, in.Region)
+		}
+	}
 	return args
 }
 

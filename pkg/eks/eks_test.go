@@ -20,6 +20,7 @@ func TestCreateEksBadToken(t *testing.T) {
 	nodepools[0].Name = "nodepool1"
 	nodepools[0].Nodes = 2
 	nodepools[0].Type = "m5.large"
+	nodepools[0].SshAccess = true
 
 	output, err := ekscluster.CreateCluster(CreateClusterInput{
 		Name:              ekscluster.clusterName,
