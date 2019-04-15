@@ -1,9 +1,9 @@
 # Initial preparations
 FROM golang:1.11-alpine3.8 as builder
 
-ENV EKSCTL_VERSION "0.1.24"
+ENV EKSCTL_VERSION "0.1.29"
 ENV KUBECTL_VERSION v1.11.5
-ENV AWS_AUTH_VER "1.11.5/2018-12-06"
+ENV AWS_AUTH_VER "1.12.7/2019-03-27"
 
 RUN apk update && apk add openssh ca-certificates make git curl
 
